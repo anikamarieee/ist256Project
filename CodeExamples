@@ -1,1 +1,130 @@
+##edamam api example
 
+import json
+import requests
+
+api_key = '6cfab6151b3c56c111d6a889b15ed870'
+app_id = '87f24882'
+query = "chicken"
+api_call = f'https://api.edamam.com/search?q={query}&app_id={app_id}&app_key={api_key}'
+response =requests.get(api_call)
+recipe_data = response.json()
+print("Displaying json recipe composition")
+print(recipe_data['hits'][0]['recipe'])
+print()
+print()
+print("Narrowing down top 10 recipes:")
+for i in range(10):
+    print(recipe_data['hits'][i]['recipe']['label'])
+
+##Zomato API 
+
+city = "Syracuse, NY"
+zomato_key = 'da7a7d98944865640e3e6f69466884dc'
+url = "https://developers.zomato.com/api/v2.1/cities"
+headers = {'user_key' : zomato_key}
+params = {'q' : city}
+
+response = requests.get(url,params=params, headers = headers)
+cities = response.json()
+city_id = cities['location_suggestions'][0]['id']
+print("Heres the top restraunts in your area + their id:")
+
+entity_id = city_id
+count = 10
+collection_id = 1
+entity_type = 'city'
+url2 = 'https://developers.zomato.com/api/v2.1/search?entity_id=988&entity_type=city'
+params = {'entity_id':entity_id, 'entity_type':entity_type, 'count': count, 'collection_id': collection_id}
+response = requests.get(url2, headers = headers, params = params)
+res_info = response.json()
+
+for j in range(10):
+    print(f"{res_info['restaurants'][j]['restaurant']['name']} --> {res_info['restaurants'][j]['restaurant']['id']}")
+
+
+#Open Street Map Example
+
+import geocoder
+import folium
+while True:
+    try:
+        city = input("Enter your current location or enter 'quit' to stop: ")
+        if city.lower() == 'quit':
+            break
+        city_info = geocoder.osm(city)
+        city_lat = city_info.json['lat']
+        city_lon = city_info.json['lng']
+        break
+    except IndexError:
+        print(f"Error: I could not find the location {location}")
+cords = (city_lat,city_lon)
+map = folium.Map(location=cords, zoom_start=10)
+map
+
+##Yelp Example w/ Pictures
+
+import requests
+from IPython.display import display, HTML, Image
+
+user_key = 'VNkXwyxhAaxITGjOp8AZ-bKS85AZml1XSVZjhvkm9AVkkhUb74rOVAVtqPveeXmoYD1UEHaCtKoM8OvZyjF8nv2kUSrypZd3dHYQ_dEvtsfmPbpT45ivDtMNrZyfXnYx'
+
+
+
+location = input("Enter a location: ")
+restaurant = input("Enter a restaurant: ")
+information = restaurant_display(location, restaurant)
+
+def display_restaurant_image(information):
+
+    for info in information:
+        restaurant_name = info['name']
+        display(HTML(f"<h1>{restaurant_name}</h1>"))
+        display(Image(info['image_url'], width =200))
+        break
+        
+def get_restaurant_id(location, restaurant):
+    yelp_key = user_key
+    params = { 'term' : restaurant, 'location' : location}
+    header = {'Authorization' : f'Bearer {yelp_key}'}
+    url = 'https://api.yelp.com/v3/businesses/search'
+    response = requests.get(url, params = params, headers = header)
+    return response.json()['businesses'][0]['id']
+
+
+def yelp_review(id):
+    url = f"https://api.yelp.com/v3/businesses/{id}/reviews"
+    yelp_key = user_key
+    header = {'Authorization' : f'Bearer {yelp_key}'}
+    response = requests.get(url, headers=header)
+    return response.json()['reviews'][0]['text']
+    
+##Functions for sentiment
+
+def get_sentiment(review):
+    url = "http://text-processing.com/api/sentiment/"
+    text = {'text' : review}
+    response = requests.post(url, data=text)
+    return response.json()['label']
+
+display_restaurant_image(information)    
+id = get_restaurant_id(location, restaurant)    
+review = yelp_review(id)
+print(review)
+
+sentiment = get_sentiment(review)
+print(f"This restaurant has a {sentiment} sentiment.")
+
+
+##pandas
+import pandas as pd
+series = []
+recipe = pd.Series(['pizza','chicken','spaghetti'])
+calories = pd.Series([255,143,366])
+cautions = pd.Series(['dairy','none','dairy'])
+
+nutrition_df = pd.DataFrame( { 'Recipe' : recipe,  "Calories" : calories, 'Cautions': cautions })
+nutrition_df
+
+import plotly.express as px
+px.bar(nutrition_df, labels = "Cautions", x = 'Recipe', y = "Calories")
