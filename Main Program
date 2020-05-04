@@ -34,13 +34,14 @@ def restraunt_finder(cuisineType):
         print(f"{res_info['restaurants'][j]['restaurant']['name']} --> {res_info['restaurants'][j]['restaurant']['id']}")
         print()
     ##Supposed to print out map but overridden by the next input statement
-    column_labels_latlongdf = ['Restaurant Name', 'Latitude', 'Longitude']
+    column_labels_latlongdf = ['Restaurant Name', 'Latitude', 'Longitude','ID']
     data_for_map = []
     for i in range(10):
         restaurant_name_for_map = res_info['restaurants'][i]['restaurant']['name']
         latitude = res_info['restaurants'][i]['restaurant']['location']['latitude']
         longitude = res_info['restaurants'][i]['restaurant']['location']['longitude']
-        data_for_map.append([restaurant_name_for_map, latitude, longitude])
+        id = res_info['restaurants'][i]['restaurant']['id']
+        data_for_map.append([restaurant_name_for_map, latitude, longitude, id])
         mapdf = pd.DataFrame(data_for_map, columns = column_labels_latlongdf)
 
     city_info = geocoder.osm(city)
@@ -50,7 +51,7 @@ def restraunt_finder(cuisineType):
     map = folium.Map(location=cords, zoom_start=10)
     for row in mapdf.to_records():
         pos = (row['Latitude'], row['Longitude'])
-        message = f"{row['Restaurant Name']}"
+        message = f"{row['Restaurant Name'],row['ID']}"
         marker = folium.Marker(location=pos,popup=message)
         figure = map.add_child(marker)
     html_string = map._repr_html_()
