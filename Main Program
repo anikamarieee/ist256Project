@@ -1,1 +1,309 @@
+import json
+import requests
+import pandas as pd
+import folium
+import geocoder
+!pip install chart-studio plotly --upgrade
+import plotly.express as px
+from IPython.display import display, HTML
+    
+def restraunt_finder(cuisineType):
+    city = input("What city would you like restaraunt suggestions? ")
+    zomato_key = 'da7a7d98944865640e3e6f69466884dc'
+    url = "https://developers.zomato.com/api/v2.1/cities"
+    headers = {'user_key' : zomato_key}
+    params = {'q' : city}
+
+    response = requests.get(url,params=params, headers = headers)
+    cities = response.json()
+    city_id = cities['location_suggestions'][0]['id']
+
+    entity_id = city_id
+    count = 10
+    collection_id = 1
+    entity_type = 'city'
+    cuisine_id = cuisineConverter(cuisineType)
+    url2 = 'https://developers.zomato.com/api/v2.1/search'
+    params = {'entity_id':entity_id, 'entity_type':entity_type, 'count': count,'cuisines': cuisine_id}
+    response = requests.get(url2, headers = headers, params = params)
+    res_info = response.json()
+    print()
+    print("Heres the top resturants in your area + their id:")
+    print()
+    for j in range(10):
+        print(f"{res_info['restaurants'][j]['restaurant']['name']} --> {res_info['restaurants'][j]['restaurant']['id']}")
+        print()
+    ##Supposed to print out map but overridden by the next input statement
+    column_labels_latlongdf = ['Restaurant Name', 'Latitude', 'Longitude']
+    data_for_map = []
+    for i in range(10):
+        restaurant_name_for_map = res_info['restaurants'][i]['restaurant']['name']
+        latitude = res_info['restaurants'][i]['restaurant']['location']['latitude']
+        longitude = res_info['restaurants'][i]['restaurant']['location']['longitude']
+        data_for_map.append([restaurant_name_for_map, latitude, longitude])
+        mapdf = pd.DataFrame(data_for_map, columns = column_labels_latlongdf)
+
+    city_info = geocoder.osm(city)
+    city_lat = city_info.json['lat']
+    city_lon = city_info.json['lng']
+    cords = (city_lat,city_lon)
+    map = folium.Map(location=cords, zoom_start=10)
+    for row in mapdf.to_records():
+        pos = (row['Latitude'], row['Longitude'])
+        message = f"{row['Restaurant Name']}"
+        marker = folium.Marker(location=pos,popup=message)
+        figure = map.add_child(marker)
+    html_string = map._repr_html_()
+    from IPython.display import display, HTML
+    chart = HTML(html_string)
+    display(chart)
+    while True:
+        print("Type the ID of the restaraunt you would like more information on(if you would like to exit press enter): ")
+        res_id = input()      
+        if res_id == '':
+            break
+        else:   
+            url3 = "https://developers.zomato.com/api/v2.1/restaurant"
+            headers = {'user_key' : zomato_key}
+            params = {'res_id': res_id}
+            response = requests.get(url3,headers = headers,params = params)
+            extra_res_info = response.json()
+            rest_name = extra_res_info['name']
+            print(f"Name of Restaurant: {rest_name}")
+            rest_address = extra_res_info['location']['address']
+            print(f"Address: {rest_address}")
+            rest_hours = extra_res_info['timings']
+            print(f"Hours of Operation: {rest_hours}")
+            rest_avgcost = extra_res_info['average_cost_for_two']
+            print(f"Average Cost for 2: {rest_avgcost}")
+            print("Highlights: ")
+            num_of_highlights = len(extra_res_info['highlights'])
+            for k in range(num_of_highlights):
+                  print(extra_res_info['highlights'][k])
+            print("URL for the Menu: ",extra_res_info['menu_url'])
+
+            print(f"Would you like to see reviews for {rest_name}? (y/n): ")
+            review_decision = input()
+            if review_decision == 'y':
+              location = city
+              restaurant = rest_name
+              information = restaurant_display(location, restaurant)
+
+              display_restaurant_image(information)    
+              id = get_restaurant_id(location, restaurant)    
+              review = yelp_review(id)
+              print(review)
+
+            if review_decision == 'n':
+                print()
+    
+def cuisineConverter(cuisine_name):
+
+    if cuisine_name == 'American':
+        cuisine_id = 1
+        return cuisine_id
+    elif cuisine_name == 'Asian':
+        cuisine_id = 3
+        return cuisine_id 
+    elif cuisine_name == 'Carribean':
+        cuisine_id = 158
+        return cuisine_id
+    elif cuisine_name == 'Chinese':
+        cuisine_id = 25
+        return cuisine_id
+    elif cuisine_name == 'French':
+        cuisine_id = 45
+        return cuisine_id
+    elif cuisine_name == 'Indian':
+        cuisine_id = 148
+        return cuisine_id
+    elif cuisine_name == 'Italian':
+        cuisine_id = 55
+        return cuisine_id
+    elif cuisine_name == 'Japanese':
+        cuisine_id = 60
+        return cuisine_id
+    elif cuisine_name == 'Mediterranean':
+        cuisine_id = 70
+        return cuisine_id
+    elif cuisine_name == 'Mexican':
+        cuisine_id = 73
+        return cuisine_id
+    elif cuisine_name == 'Middle Eastern':
+        cuisine_id = 137
+        return cuisine_id
+
+
+
+
+user_key = 'VNkXwyxhAaxITGjOp8AZ-bKS85AZml1XSVZjhvkm9AVkkhUb74rOVAVtqPveeXmoYD1UEHaCtKoM8OvZyjF8nv2kUSrypZd3dHYQ_dEvtsfmPbpT45ivDtMNrZyfXnYx'
+
+def restaurant_display(location, restaurant):
+    yelp_key = user_key
+    params = { 'term' : restaurant, 'location' : location}
+    header = {'Authorization' : f'Bearer {yelp_key}'}
+    url = 'https://api.yelp.com/v3/businesses/search'
+    response = requests.get(url, params = params, headers = header)
+    return response.json()['businesses']
+
+def display_restaurant_image(information):
+
+    for info in information:
+        restaurant_name = info['name']
+        display(HTML(f"<h1>{restaurant_name}</h1>"))
+        display(Image(info['image_url'], width =200))
+        break
+        
+def get_restaurant_id(location, restaurant):
+    yelp_key = user_key
+    params = { 'term' : restaurant, 'location' : location}
+    header = {'Authorization' : f'Bearer {yelp_key}'}
+    url = 'https://api.yelp.com/v3/businesses/search'
+    response = requests.get(url, params = params, headers = header)
+    return response.json()['businesses'][0]['id']
+
+
+def yelp_review(id):
+    url = f"https://api.yelp.com/v3/businesses/{id}/reviews"
+    yelp_key = user_key
+    header = {'Authorization' : f'Bearer {yelp_key}'}
+    response = requests.get(url, headers=header)
+    review_info = response.json()
+    print("Top 3 reviews on Yelp:")
+    for i in range(3):
+        print(review_info['reviews'][i]['text'])
+
+try:
+    
+    api_key = 'e18dfeb573c549843c7f8ed990c4ffbd'
+    app_id = '87f24882'
+
+    query = input("What is the recipe your are looking for? ")
+    base_api_call = f'https://api.edamam.com/search?q={query}&app_id={app_id}&app_key={api_key}'
+    print("Do you have any dietary goals? If so input the exact documentation as follows,press space to exit:")
+    print("------Please Enter One at a Time------")
+    print("Options: Balanced, High Fiber, High Protein, Low Carb, Low Fat, Low Sodium")
+    while True:
+        diet_goals = input()
+        if diet_goals == "":
+            break
+        elif diet_goals == 'Balanced':
+            base_api_call += "&diet=balanced"
+        elif diet_goals == 'High Fiber':
+            base_api_call += "&diet=high-fiber"
+        elif diet_goals == 'High Protein':
+            base_api_call += "&diet=high-protein"
+        elif diet_goals == 'Low Carb':
+            base_api_call += "&diet=low-carb"
+        elif diet_goals == 'Low Fat':
+            base_api_call += "&diet=low-fat"
+        elif diet_goals == 'Low Sodium':
+            base_api_call += "&diet=low-sodium"
+
+    print("Do you have any health restraints or special diets?If so input the exact documentation as follows, press space to exit:")
+    print("------Please Enter One at a Time------")
+    print("Options:Peanut Free, Tree Nut Free,Vegan, Vegetarian")
+    while True:
+        health_restraints = input()
+        if health_restraints == "":
+            break
+        elif health_restraints == "Peanut Free":
+            base_api_call += "&health=peanut-free"
+        elif health_restraints == 'Tree Nut Free':
+            base_api_call += "&health=tree-nut-free"
+        elif health_restraints == "Vegan":
+            base_api_call += "&health=vegan"
+        elif health_restraints == 'Vegetarian':
+            base_api_call += "&health=vegetarian"
+
+    cuisines= []
+    print("Would you like a specific cuisine?If so input the exact documentation as follows, press space to exit:")
+    print("------Please Enter One at a Time------")
+    print("Options: American, Asian, Carribean, Chinese, French, Indian, Italian, Japanese, Mediterranean, Mexican, Middle Eastern")
+    while True:
+        cuisine_type = input()
+        cuisines.append(cuisine_type)
+        if cuisine_type == '':
+            break
+        elif cuisine_type == 'American':
+            base_api_call += "&cuisinetype=american"
+        elif cuisine_type == 'Asian':
+            base_api_call += "&cuisinetype=asian"
+        elif cuisine_type == 'Carribean':
+            base_api_call += "&cuisinetype=carribean"
+        elif cuisine_type == 'Chinese':
+            base_api_call += "&cuisinetype=chinese"
+        elif cuisine_type == 'French':
+            base_api_call += "&cuisinetype=french"
+        elif cuisine_type == 'Indian':
+            base_api_call += "&cuisinetype=indian"
+        elif cuisine_type == 'Japanese':
+            base_api_call += "&cuisinetype=japanese"
+        elif cuisine_type == 'Mediterranean':
+            base_api_call += "&cuisinetype=mediterranean"
+        elif cuisine_type == 'Mexican':
+            base_api_call += "&cuisinetype=mexican"
+        elif cuisine_type == 'Middle Eastern':
+            base_api_call += "&cuisinetype=middleEastern" 
+    response =requests.get(base_api_call)
+    recipe_data = response.json()
+    print()
+    print()
+    print("Top 10 recipes:")
+    for i in range(10):
+        print(f"{i}. "+ recipe_data['hits'][i]['recipe']['label'])
+    print()
+    print()
+    print("Would you like to see more information on a particular recipe?")
+    print("If yes, then type the number corresponding with the recipe, otherwise hit space")
+    recipe_number = int(input())
+    if recipe_number != "":
+        print("The Ingredients:",recipe_data['hits'][recipe_number]['recipe']['ingredientLines'])
+        print("Calories: ", recipe_data['hits'][recipe_number]['recipe']['calories'])
+        ## if output shows (0.0 minutes) then edamam didn't have the time idea for the recipe
+        print("Total Time: ",recipe_data['hits'][recipe_number]['recipe']['totalTime'],"minutes")
+        print("URL for full recipe/instructions:",recipe_data['hits'][recipe_number]['recipe']['url'])
+        print("Calorie Comparison:")
+        column_labels = ['Recipe', 'Calories']
+        data_for_chart = []
+        for i in range(recipe_data["to"]):
+            recipe_name = recipe_data['hits'][i]['recipe']['label']
+            calories = recipe_data['hits'][i]['recipe']['calories']
+            data_for_chart.append([recipe_name, calories])
+        data_for_chart
+        df = pd.DataFrame(data_for_chart, columns = column_labels)
+        fig = px.bar(df, x='Recipe', y='Calories', title='Calorie Comparison for Top 10 Recipes')
+        fig.show()
+    else:
+        print('')
+    print("Would you like to see restraunts nearby that are similar to the cuisine you're looking for? (y/n): ")
+    restraunt_decision = input()
+    if restraunt_decision == 'y':
+        restraunt_finder(cuisines[0])
+        #loop to find restraunts nearby
+    if restraunt_decision == 'n':
+        print()
+              
+              
+              
+except json.decoder.JSONDecodeError as e: 
+    print("ERROR: Cannot decode the response into json")
+    print("DETAILS", e)
+
+# response not ok
+except requests.exceptions.HTTPError as e:
+    print("ERROR: Response from ", url, 'was not ok.')
+    print("DETAILS:", e)
+#internet is broken
+except requests.exceptions.RequestException as e: 
+    print("ERROR: Cannot connect to ", url)
+    print("DETAILS:", e)
+#Less than 10 recipes available
+except IndexError as e:
+    print("ERROR: Less than 10 recipes/5 Yelp Reviews available for that search")
+    print("DETAILS:", e)
+except NameError as e:
+    print("ERROR: The restaurant that you chose doesn't have an image to display/Yelp reviews present")
+    print("DETAILS:",e)
+
 
